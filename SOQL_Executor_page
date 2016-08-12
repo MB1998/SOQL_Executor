@@ -1,0 +1,20 @@
+<apex:page controller="SOQLExecutorController2">
+  <apex:form >
+    <apex:pageBlock >
+      <apex:pageMessages />
+      <apex:inputTextarea value="{!query}" cols="150"/>
+      <apex:pageBlockButtons >
+        <apex:commandButton value="Execute" action="{!execute}" />
+      </apex:pageBlockButtons>
+    </apex:pageBlock>
+    <apex:pageBlock title="SOQL result" id="tableResult" rendered="{!renderTable}">
+      Count of found records: "{!sizeofList}"
+      <apex:pageBlockTable value="{!SOQLresult}" var="result">
+        <apex:repeat value="{!result.FieldWrapperList}" var="thisFieldWrapper" id="theRepeat">
+          <apex:column headervalue="{!thisFieldWrapper.nameField}"/>
+          <apex:column value="{!thisFieldWrapper.value}" id="theValue"/><br/>
+        </apex:repeat>
+      </apex:pageBlockTable>
+    </apex:pageBlock>
+  </apex:form>
+</apex:page>
