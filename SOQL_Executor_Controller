@@ -1,0 +1,112 @@
+public class SOQLExecutorController2{
+    public String query {get;set;}
+    public Boolean renderTable {get;set;}
+    public List<ObjectWrapper> SOQLresult {get;set;}
+    public List<String> namesFields{get;set;}
+    public Integer sizeofList {get;set;}   
+    
+    private String localquery;
+    private List<sObject> queryResult;
+    
+    private String SYSTEM_FIELD_NOT_TO_SHOW = 'masterrecordid parentid accountsource dunsnumber tradestyle naicscode naicsdesc yearstarted sicdesc dandbcompanyid lastactivitydate jigsaw jigsawcompanyid billingpostalcode billingcountry billinglatitude billinglongitude billinggeocodeaccuracy shippingcity shippingstate shippingpostalcode shippingcountry shippinglatitude shippinglongitude shippinggeocodeaccuracy isdeleted createdbyid lastmodifiedbyid systemmodstamp lastvieweddate lastreferenceddate';
+    
+    public SOQLExecutorController2(){
+        SOQLresult = new List<ObjectWrapper>();
+        namesFields = new List<String>();
+        queryResult = new List<sObject>();
+        renderTable = false;
+        
+    }
+    
+    public void execute(){
+        localQuery = query.toLowerCase();
+        if((!localQuery.startsWithIgnoreCase('select')) || (!localQuery.contains('from'))){
+            returnError('Enter corect query, please.');
+            return;
+        }
+        String obj = localQuery.substringAfter('from ').split(' ')[0];
+        Schema.DescribeSObjectResult result;
+        try{
+            result = Schema.describeSObjects(new List<String>{obj})[0];
+        } catch (Exception e){
+            returnError('There isn`t object: ' + obj);
+            return;
+        }
+        Map <String, Schema.SObjectField> fieldMap = result.fields.getMap();
+        List<String> Allfields= new List<String>(fieldMap.keySet());
+        String allFieldsByObjectForCheck = String.join(Allfields, ' ');
+        List<String> fieldsInQuery = localQuery.substringBetween('select', 'from').deleteWhitespace().split(',');
+        for(String fieldInQuery :fieldsInQuery){
+            if(!allFieldsByObjectForCheck.contains(fieldInQuery) && fieldInQuery != '*'){
+                returnError('Object doesn`t contains ' + fieldInQuery + ' field');
+                return;
+            }
+        }
+        if(!localQuery.contains('LIMIT')){
+            localQuery+= ' limit 1000';
+        }
+        if(localQuery.contains('*')){
+            List<String> fields = new List<String>();
+            for(String field : Allfields){
+                if(!SYSTEM_FIELD_NOT_TO_SHOW.contains(field)){
+                    fields.add(field);
+                }
+            }
+            String allFieldsByObject = String.join(fields,', ') + ' ';
+            localQuery = localQuery.replace('*', allFieldsByObject);
+        }
+        try{
+            SOQLresult.clear();
+            queryResult= Database.query(localQuery);
+            parseSObject();
+            sizeofList  = SOQLresult.size();
+            renderTable = true;
+        } catch(System.QueryException e) {
+            returnError('Enter corect query, please.');
+            return;
+        }
+    }
+    
+    private void returnError(String ErrorMessage){
+        ApexPages.Message myMsg = new ApexPages.Message(ApexPages.Severity.INFO, ErrorMessage);
+        ApexPages.addMessage(myMsg);
+    }
+    
+    public void parseSObject(){
+        namesFields = localQuery.substringBetween('select', 'from').deleteWhitespace().split(',');
+        
+        ObjectWrapper objWrapperForNamesFields = new ObjectWrapper();
+        for(String field : namesFields){
+            FieldWrapper newFieldWrapper = new FieldWrapper(field, field);
+            objWrapperForNamesFields.FieldWrapperList.add(newFieldWrapper);
+        }
+        SOQLresult.add(objWrapperForNamesFields);
+        
+        for(sObject myObject : queryResult){
+            ObjectWrapper objWrapper = new ObjectWrapper();
+            for(String field : namesFields){
+                FieldWrapper newFieldWrapper = new FieldWrapper(field, String.valueOf(myObject.get(field)));
+                objWrapper.FieldWrapperList.add(newFieldWrapper);
+            }
+            SOQLresult.add(objWrapper);
+        }
+    }
+    
+    public class ObjectWrapper{
+        public List<FieldWrapper> FieldWrapperList {get;set;}
+        
+        public ObjectWrapper(){
+            FieldWrapperList = new List<FieldWrapper>();
+        }
+    }
+    
+    public class FieldWrapper{
+        public String nameField {get;set;}
+        public String value {get;set;}
+        
+        public FieldWrapper(String snameField, String svalue){
+            nameField = snameField;
+            value = svalue;
+        }
+    }
+}
